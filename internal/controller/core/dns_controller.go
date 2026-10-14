@@ -281,7 +281,6 @@ func (r *DNSReconciler) reconcile(ctx context.Context, s *dnsScope) (reterr erro
 	}
 
 	if err := s.Provider.Connect(ctx, s.Connection); err != nil {
-		conditions.Set(s.DNS, conditions.FromError(err))
 		return fmt.Errorf("failed to connect to provider: %w", err)
 	}
 	defer func() {
