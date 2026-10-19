@@ -3433,6 +3433,8 @@ func (p *Provider) DeleteVRF(ctx context.Context, req *provider.DeleteVRFRequest
 }
 
 func (p *Provider) EnsureSystemSettings(ctx context.Context, s *nxv1alpha1.System) error {
+	sb := new(gnmiext.SetBuilder).Limit(maxSetOperations)
+
 	long := new(VLANSystem)
 	long.LongName = s.Spec.VlanLongName
 
@@ -3441,16 +3443,33 @@ func (p *Provider) EnsureSystemSettings(ctx context.Context, s *nxv1alpha1.Syste
 
 	sys := new(SystemJumboMTU)
 	*sys = SystemJumboMTU(s.Spec.JumboMTU)
+	sb.Patch(long, res, sys)
 
-	sidod := new(DHCPRelayServerIDOverrideDisable)
-	if s.Spec.RelayServerIDOverrideDisable {
-		*sidod = 1
-		if err := p.client.Patch(ctx, &Feature{Name: FeatureDHCP, AdminSt: AdminStEnabled}); err != nil {
-			return err
-		}
+	// The override leaf lives under the dhcp feature tree, which only exists while the
+	// feature is enabled. Read the current feature state to decide how to realize it.
+	dhcp := &Feature{Name: FeatureDHCP}
+	if err := p.client.GetConfig(ctx, dhcp); err != nil && !errors.Is(err, gnmiext.ErrNil) {
+		return err
 	}
 
-	return p.client.Patch(ctx, long, res, sys, sidod)
+	sidod := new(DHCPRelayServerIDOverrideDisable)
+	// Honor the deprecated top-level field during the expand phase of its migration
+	// into DHCP.RelayServerIDOverrideDisable: enabled if either is set.
+	if s.Spec.RelayServerIDOverrideDisable || s.Spec.DHCP.RelayServerIDOverrideDisable { //nolint:staticcheck // SA1019: deprecated field read intentionally during migration
+		*sidod = 1
+		if dhcp.AdminSt != AdminStEnabled {
+			dhcp.AdminSt = AdminStEnabled
+			sb.Patch(dhcp)
+		}
+	}
+	// Only write the leaf when the feature is (or is being) enabled. When the feature is
+	// off and the override is not requested, the path is absent and writing it would be
+	// rejected by the device.
+	if dhcp.AdminSt == AdminStEnabled {
+		sb.Patch(sidod)
+	}
+
+	return p.Do(ctx, sb)
 }
 
 func (p *Provider) ResetSystemSettings(ctx context.Context) error {
