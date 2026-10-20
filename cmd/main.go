@@ -569,7 +569,7 @@ func main() { //nolint:gocyclo
 		Recorder:         mgr.GetEventRecorder("aaa-controller"),
 		WatchFilterValue: watchFilterValue,
 		Locker:           locker,
-	}).SetupWithManager(mgr); err != nil {
+	}).SetupWithManager(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "AAA")
 		os.Exit(1)
 	}

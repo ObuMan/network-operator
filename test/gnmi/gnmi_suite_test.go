@@ -241,7 +241,7 @@ func registerControllers(ctx context.Context, mgr ctrl.Manager, recorder *events
 		Scheme:   mgr.GetScheme(),
 		Recorder: recorder,
 		Locker:   locker,
-	}).SetupWithManager(mgr)
+	}).SetupWithManager(ctx, mgr)
 	Expect(err).NotTo(HaveOccurred())
 
 	err = (&core.BannerReconciler{
