@@ -169,6 +169,14 @@ var _ = BeforeSuite(func() {
 	}).SetupWithManager(ctx, k8sManager)
 	Expect(err).NotTo(HaveOccurred())
 
+	err = (&AAAReconciler{
+		Client:   k8sManager.GetClient(),
+		Scheme:   k8sManager.GetScheme(),
+		Recorder: recorder,
+		Locker:   testLocker,
+	}).SetupWithManager(ctx, k8sManager)
+	Expect(err).NotTo(HaveOccurred())
+
 	err = (&NTPReconciler{
 		Client:   k8sManager.GetClient(),
 		Scheme:   k8sManager.GetScheme(),
@@ -490,6 +498,7 @@ type DeviceState struct {
 	LLDP                 *v1alpha1.LLDP
 	LLDPOperStatus       bool
 	LLDPNeighbors        map[string]*provider.LLDPAdjacency
+	AAA                  *v1alpha1.AAA
 	DHCPRelay            *v1alpha1.DHCPRelay
 	DHCPRelayDeleteCalls int
 	EthernetSegments     map[string]string
@@ -756,6 +765,22 @@ func (p *Provider) DeleteNTP(context.Context) error {
 	s.Lock()
 	defer s.Unlock()
 	s.NTP = nil
+	return nil
+}
+
+func (p *Provider) EnsureAAA(_ context.Context, req *provider.EnsureAAARequest) error {
+	s := p.devices.StateFor(p.deviceName)
+	s.Lock()
+	defer s.Unlock()
+	s.AAA = req.AAA
+	return nil
+}
+
+func (p *Provider) DeleteAAA(_ context.Context, req *provider.DeleteAAARequest) error {
+	s := p.devices.StateFor(p.deviceName)
+	s.Lock()
+	defer s.Unlock()
+	s.AAA = nil
 	return nil
 }
 

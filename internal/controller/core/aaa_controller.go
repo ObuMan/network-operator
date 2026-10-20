@@ -22,6 +22,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
@@ -169,7 +170,7 @@ func (r *AAAReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ ctrl
 		return ctrl.Result{}, nil
 	}
 
-	if conditions.InitializeConditions(obj, v1alpha1.ReadyCondition) {
+	if conditions.InitializeConditions(obj, v1alpha1.ReadyCondition, v1alpha1.ConfiguredCondition) {
 		log.V(1).Info("Initializing status conditions")
 		return ctrl.Result{}, r.Status().Update(ctx, obj)
 	}
@@ -201,7 +202,7 @@ func (r *AAAReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ ctrl
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *AAAReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *AAAReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
 	labelSelector := metav1.LabelSelector{}
 	if r.WatchFilterValue != "" {
 		labelSelector.MatchLabels = map[string]string{v1alpha1.WatchLabel: r.WatchFilterValue}
@@ -212,15 +213,36 @@ func (r *AAAReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return fmt.Errorf("failed to create label selector predicate: %w", err)
 	}
 
+	if err := mgr.GetFieldIndexer().IndexField(ctx, &v1alpha1.AAA{}, v1alpha1.DeviceRefIndexKey, func(obj client.Object) []string {
+		o := obj.(*v1alpha1.AAA)
+		return []string{o.Spec.DeviceRef.Name}
+	}); err != nil {
+		return err
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.AAA{}).
 		Named("aaa").
 		WithEventFilter(filter).
-		// Watches enqueues AAA for referenced Secret resources.
+		// Watches enqueues AAAs for referenced Secret resources.
 		Watches(
 			&corev1.Secret{},
 			handler.EnqueueRequestsFromMapFunc(r.secretToAAA),
 			builder.WithPredicates(predicate.GenerationChangedPredicate{}),
+		).
+		// Watches enqueues AAAs for updates in referenced Device resources.
+		// Triggers on create, delete, and update events when the device's effective pause state changes.
+		Watches(
+			&v1alpha1.Device{},
+			handler.EnqueueRequestsFromMapFunc(r.deviceToAAAs),
+			builder.WithPredicates(predicate.Funcs{
+				UpdateFunc: func(e event.UpdateEvent) bool {
+					return paused.DevicePausedChanged(e.ObjectOld, e.ObjectNew)
+				},
+				GenericFunc: func(e event.GenericEvent) bool {
+					return false
+				},
+			}),
 		).
 		Complete(r)
 }
@@ -240,6 +262,10 @@ func (r *AAAReconciler) reconcile(ctx context.Context, s *aaaScope) (reterr erro
 	}
 
 	s.AAA.Labels[v1alpha1.DeviceLabel] = s.Device.Name
+
+	defer func() {
+		conditions.RecomputeReady(s.AAA)
+	}()
 
 	// Ensure the AAA is owned by the Device.
 	if !controllerutil.HasControllerReference(s.AAA) {
@@ -289,8 +315,7 @@ func (r *AAAReconciler) reconcile(ctx context.Context, s *aaaScope) (reterr erro
 	})
 
 	cond := conditions.FromError(err)
-	// As this resource is configuration only, we use the Configured condition as top-level Ready condition.
-	cond.Type = v1alpha1.ReadyCondition
+
 	conditions.Set(s.AAA, cond)
 
 	return err
@@ -347,6 +372,38 @@ func (r *AAAReconciler) secretToAAA(ctx context.Context, obj client.Object) []ct
 				break // Only enqueue once per AAA
 			}
 		}
+	}
+
+	return requests
+}
+
+// deviceToAAAs is a [handler.MapFunc] to be used to enqueue requests for reconciliation
+// for AAAs when their referenced Device's effective pause state changes.
+func (r *AAAReconciler) deviceToAAAs(ctx context.Context, obj client.Object) []ctrl.Request {
+	device, ok := obj.(*v1alpha1.Device)
+	if !ok {
+		panic(fmt.Sprintf("Expected a Device but got a %T", obj))
+	}
+
+	log := ctrl.LoggerFrom(ctx, "Device", klog.KObj(device))
+
+	list := new(v1alpha1.AAAList)
+	if err := r.List(
+		ctx, list,
+		client.InNamespace(device.Namespace),
+		client.MatchingFields{v1alpha1.DeviceRefIndexKey: device.Name},
+	); err != nil {
+		log.Error(err, "Failed to list AAAs")
+		return nil
+	}
+
+	requests := make([]ctrl.Request, 0, len(list.Items))
+	for i := range list.Items {
+		log.V(2).Info("Enqueuing AAA for reconciliation", "AAA", klog.KObj(&list.Items[i]))
+		requests = append(requests, ctrl.Request{
+			Name:      list.Items[i].Name,
+			Namespace: list.Items[i].Namespace,
+		})
 	}
 
 	return requests
