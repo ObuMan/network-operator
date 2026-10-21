@@ -170,7 +170,7 @@ func (r *AccessControlListReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		return ctrl.Result{}, nil
 	}
 
-	if conditions.InitializeConditions(obj, v1alpha1.ReadyCondition) {
+	if conditions.InitializeConditions(obj, v1alpha1.ReadyCondition, v1alpha1.ConfiguredCondition) {
 		log.V(1).Info("Initializing status conditions")
 		return ctrl.Result{}, r.Status().Update(ctx, obj)
 	}
@@ -263,6 +263,7 @@ type aclScope struct {
 }
 
 func (r *AccessControlListReconciler) reconcile(ctx context.Context, s *aclScope) (reterr error) {
+	defer conditions.RecomputeReady(s.ACL)
 	if s.ACL.Labels == nil {
 		s.ACL.Labels = make(map[string]string)
 	}
@@ -298,8 +299,6 @@ func (r *AccessControlListReconciler) reconcile(ctx context.Context, s *aclScope
 	})
 
 	cond := conditions.FromError(err)
-	// As this resource is configuration only, we use the Configured condition as top-level Ready condition.
-	cond.Type = v1alpha1.ReadyCondition
 	conditions.Set(s.ACL, cond)
 
 	return err
@@ -341,11 +340,11 @@ func (r *AccessControlListReconciler) deviceToAccessControlLists(ctx context.Con
 	}
 
 	requests := make([]ctrl.Request, 0, len(list.Items))
-	for _, i := range list.Items {
-		log.V(2).Info("Enqueuing AccessControlList for reconciliation", "AccessControlList", klog.KObj(&i))
+	for i := range list.Items {
+		log.V(2).Info("Enqueuing AccessControlList for reconciliation", "AccessControlList", klog.KObj(&list.Items[i]))
 		requests = append(requests, ctrl.Request{
-			Name:      i.Name,
-			Namespace: i.Namespace,
+			Name:      list.Items[i].Name,
+			Namespace: list.Items[i].Namespace,
 		})
 	}
 
