@@ -88,12 +88,12 @@ func TestDHCPRelayJSONNetworkInstance(t *testing.T) {
 	}{
 		{
 			name:    "empty network-instance is omitted",
-			relay:   &DHCPRelay{AdminState: dhcpRelayAdminStateEnable, Server: []string{"192.0.2.1"}},
+			relay:   &DHCPRelay{AdminState: AdminStEnable, Server: []string{"192.0.2.1"}},
 			wantKey: false,
 		},
 		{
 			name:    "set network-instance is present",
-			relay:   &DHCPRelay{AdminState: dhcpRelayAdminStateEnable, Server: []string{"192.0.2.1"}, NetworkInstance: "shared-services"},
+			relay:   &DHCPRelay{AdminState: AdminStEnable, Server: []string{"192.0.2.1"}, NetworkInstance: "shared-services"},
 			wantKey: true,
 		},
 	}
@@ -225,7 +225,7 @@ func TestDeleteDHCPRelay(t *testing.T) {
 		err := p.DeleteDHCPRelay(t.Context(), &provider.DeleteDHCPRelayRequest{
 			DHCPRelay: &corev1alpha1.DHCPRelay{
 				Spec: corev1alpha1.DHCPRelaySpec{
-					InterfaceRefs: []corev1alpha1.LocalObjectReference{{Name: "eth1"}},
+					InterfaceRefs: []corev1alpha1.LocalObjectReference{{Name: "eth1"}}, //nolint:staticcheck
 				},
 			},
 		})

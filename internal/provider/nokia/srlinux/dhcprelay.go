@@ -18,11 +18,6 @@ const (
 	// dhcpRelayDefaultSubinterfaceIndex is the subinterface a relay attaches to
 	// when the interface name carries no ".<index>" suffix.
 	dhcpRelayDefaultSubinterfaceIndex = 0
-
-	// dhcpRelayAdminStateEnable is the admin-state value that enables the relay.
-	// It is also the platform default, so it must be set explicitly to avoid a
-	// false diff against the device on every reconcile.
-	dhcpRelayAdminStateEnable = "enable"
 )
 
 var _ provider.DHCPRelayProvider = (*Provider)(nil)
@@ -62,7 +57,7 @@ func (p *Provider) EnsureDHCPRelay(ctx context.Context, req *provider.DHCPRelayR
 		sb.Update(&DHCPRelay{
 			Interface:         name,
 			SubinterfaceIndex: index,
-			AdminState:        dhcpRelayAdminStateEnable,
+			AdminState:        AdminStEnable,
 			Server:            req.DHCPRelay.Spec.Servers,
 			NetworkInstance:   networkInstance,
 		})
@@ -75,21 +70,21 @@ func (p *Provider) EnsureDHCPRelay(ctx context.Context, req *provider.DHCPRelayR
 // subinterface index. SRLinux names a subinterface "<interface>.<index>";
 // without a suffix the relay attaches to the base subinterface.
 func splitSubinterface(name string) (string, int, error) {
-	i := strings.LastIndex(name, ".")
-	if i == -1 {
+	base, suffix, found := strings.CutLast(name, ".")
+	if !found {
 		return name, dhcpRelayDefaultSubinterfaceIndex, nil
 	}
-	index, err := strconv.Atoi(name[i+1:])
+	index, err := strconv.Atoi(suffix)
 	if err != nil {
 		return "", 0, fmt.Errorf("invalid subinterface index in interface name %q: %w", name, err)
 	}
-	return name[:i], index, nil
+	return base, index, nil
 }
 
 type DHCPRelay struct {
 	Interface         string   `json:"-"`
 	SubinterfaceIndex int      `json:"-"`
-	AdminState        string   `json:"admin-state,omitempty"`
+	AdminState        AdminSt  `json:"admin-state,omitempty"`
 	Server            []string `json:"server,omitempty"`
 	NetworkInstance   string   `json:"network-instance,omitempty"`
 }
