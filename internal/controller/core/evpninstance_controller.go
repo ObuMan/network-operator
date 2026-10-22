@@ -449,7 +449,7 @@ func (r *EVPNInstanceReconciler) reconcileVRF(ctx context.Context, s *eviScope) 
 	if err := r.Get(ctx, key, vrf); err != nil {
 		if apierrors.IsNotFound(err) {
 			conditions.Set(s.EVPNInstance, metav1.Condition{
-				Type:    v1alpha1.ReadyCondition,
+				Type:    v1alpha1.ConfiguredCondition,
 				Status:  metav1.ConditionFalse,
 				Reason:  v1alpha1.VRFNotFoundReason,
 				Message: fmt.Sprintf("referenced VRF %q not found", key),
@@ -461,7 +461,7 @@ func (r *EVPNInstanceReconciler) reconcileVRF(ctx context.Context, s *eviScope) 
 
 	if vrf.Spec.DeviceRef.Name != s.Device.Name {
 		conditions.Set(s.EVPNInstance, metav1.Condition{
-			Type:    v1alpha1.ReadyCondition,
+			Type:    v1alpha1.ConfiguredCondition,
 			Status:  metav1.ConditionFalse,
 			Reason:  v1alpha1.CrossDeviceReferenceReason,
 			Message: fmt.Sprintf("referenced VRF %q does not belong to device %q", vrf.Name, s.Device.Name),
