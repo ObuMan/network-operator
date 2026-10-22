@@ -14,25 +14,6 @@ import (
 	"github.com/ironcore-dev/network-operator/internal/transport/gnmiext"
 )
 
-func newProviderWithClient(client gnmiext.Client) *Provider {
-	return &Provider{client: client}
-}
-
-// captureRelays returns a mock whose Do records every DHCPRelay element queued.
-func captureRelays(relays *[]*DHCPRelay) *gnmiext.ClientMock {
-	return &gnmiext.ClientMock{
-		DoFunc: func(_ context.Context, b *gnmiext.SetBuilder) error {
-			b.Split(func(el gnmiext.DataElement) bool {
-				if r, ok := el.(*DHCPRelay); ok {
-					*relays = append(*relays, r)
-				}
-				return false
-			})
-			return nil
-		},
-	}
-}
-
 func TestEnsureDHCPRelayNetworkInstance(t *testing.T) {
 	tests := []struct {
 		name string
@@ -52,8 +33,15 @@ func TestEnsureDHCPRelayNetworkInstance(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			var relays []*DHCPRelay
-			p := newProviderWithClient(captureRelays(&relays))
+			var captured *DHCPRelay
+			p := &Provider{client: &gnmiext.ClientMock{
+				UpdateFunc: func(_ context.Context, els ...gnmiext.DataElement) error {
+					if r, ok := els[0].(*DHCPRelay); ok {
+						captured = r
+					}
+					return nil
+				},
+			}}
 
 			err := p.EnsureDHCPRelay(t.Context(), &provider.DHCPRelayRequest{
 				DHCPRelay: &corev1alpha1.DHCPRelay{
@@ -67,10 +55,10 @@ func TestEnsureDHCPRelayNetworkInstance(t *testing.T) {
 			if err != nil {
 				t.Fatalf("EnsureDHCPRelay() error = %v", err)
 			}
-			if len(relays) != 1 {
-				t.Fatalf("queued %d relays, want 1", len(relays))
+			if captured == nil {
+				t.Fatal("EnsureDHCPRelay() did not call Update")
 			}
-			if got := relays[0].NetworkInstance; got != test.want {
+			if got := captured.NetworkInstance; got != test.want {
 				t.Errorf("NetworkInstance = %q, want %q", got, test.want)
 			}
 		})
@@ -169,8 +157,15 @@ func TestSplitSubinterface(t *testing.T) {
 }
 
 func TestEnsureDHCPRelaySubinterface(t *testing.T) {
-	var relays []*DHCPRelay
-	p := newProviderWithClient(captureRelays(&relays))
+	var captured *DHCPRelay
+	p := &Provider{client: &gnmiext.ClientMock{
+		UpdateFunc: func(_ context.Context, els ...gnmiext.DataElement) error {
+			if r, ok := els[0].(*DHCPRelay); ok {
+				captured = r
+			}
+			return nil
+		},
+	}}
 
 	err := p.EnsureDHCPRelay(t.Context(), &provider.DHCPRelayRequest{
 		DHCPRelay: &corev1alpha1.DHCPRelay{
@@ -183,18 +178,18 @@ func TestEnsureDHCPRelaySubinterface(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EnsureDHCPRelay() error = %v", err)
 	}
-	if len(relays) != 1 {
-		t.Fatalf("queued %d relays, want 1", len(relays))
+	if captured == nil {
+		t.Fatal("EnsureDHCPRelay() did not call Update")
 	}
-	if relays[0].Interface != "ethernet-1/1" || relays[0].SubinterfaceIndex != 100 {
-		t.Errorf("relay = (%q, %d), want (ethernet-1/1, 100)", relays[0].Interface, relays[0].SubinterfaceIndex)
+	if captured.Interface != "ethernet-1/1" || captured.SubinterfaceIndex != 100 {
+		t.Errorf("relay = (%q, %d), want (ethernet-1/1, 100)", captured.Interface, captured.SubinterfaceIndex)
 	}
 }
 
 func TestDeleteDHCPRelay(t *testing.T) {
 	t.Run("normal path deletes the interface relay", func(t *testing.T) {
 		var deleted []*DHCPRelay
-		client := &gnmiext.ClientMock{
+		p := &Provider{client: &gnmiext.ClientMock{
 			DeleteFunc: func(_ context.Context, els ...gnmiext.DataElement) error {
 				for _, el := range els {
 					if r, ok := el.(*DHCPRelay); ok {
@@ -203,8 +198,7 @@ func TestDeleteDHCPRelay(t *testing.T) {
 				}
 				return nil
 			},
-		}
-		p := newProviderWithClient(client)
+		}}
 
 		err := p.DeleteDHCPRelay(t.Context(), &provider.DeleteDHCPRelayRequest{
 			DHCPRelay: &corev1alpha1.DHCPRelay{},
@@ -220,7 +214,7 @@ func TestDeleteDHCPRelay(t *testing.T) {
 
 	t.Run("deprecated InterfaceRefs path is a no-op and does not panic", func(t *testing.T) {
 		// Mock with no funcs: any device call panics, and req.Interface is nil.
-		p := newProviderWithClient(&gnmiext.ClientMock{})
+		p := &Provider{client: &gnmiext.ClientMock{}}
 
 		err := p.DeleteDHCPRelay(t.Context(), &provider.DeleteDHCPRelayRequest{
 			DHCPRelay: &corev1alpha1.DHCPRelay{

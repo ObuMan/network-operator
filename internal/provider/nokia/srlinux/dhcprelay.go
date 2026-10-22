@@ -9,9 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	corev1alpha1 "github.com/ironcore-dev/network-operator/api/core/v1alpha1"
 	"github.com/ironcore-dev/network-operator/internal/provider"
-	"github.com/ironcore-dev/network-operator/internal/transport/gnmiext"
 )
 
 const (
@@ -43,27 +41,21 @@ func (p *Provider) EnsureDHCPRelay(ctx context.Context, req *provider.DHCPRelayR
 	if req.VRF != nil {
 		networkInstance = req.VRF.Spec.Name
 	}
-
-	ifaces := req.Interfaces
-	if req.Interface != nil {
-		ifaces = []corev1alpha1.Interface{*req.Interface}
+	if len(req.DHCPRelay.Spec.InterfaceRefs) > 0 { //nolint:staticcheck
+		return nil
 	}
-	sb := &gnmiext.SetBuilder{}
-	for i := range ifaces {
-		name, index, err := splitSubinterface(ifaces[i].Spec.Name)
-		if err != nil {
-			return err
-		}
-		sb.Update(&DHCPRelay{
-			Interface:         name,
-			SubinterfaceIndex: index,
-			AdminState:        AdminStEnable,
-			Server:            req.DHCPRelay.Spec.Servers,
-			NetworkInstance:   networkInstance,
-		})
+	name, index, err := splitSubinterface(req.Interface.Spec.Name)
+	if err != nil {
+		return err
 	}
-
-	return p.client.Do(ctx, sb)
+	dhcprelay := &DHCPRelay{
+		Interface:         name,
+		SubinterfaceIndex: index,
+		AdminState:        AdminStEnable,
+		Server:            req.DHCPRelay.Spec.Servers,
+		NetworkInstance:   networkInstance,
+	}
+	return p.client.Update(ctx, dhcprelay)
 }
 
 // splitSubinterface splits an interface name into its base name and
@@ -84,8 +76,8 @@ func splitSubinterface(name string) (string, int, error) {
 type DHCPRelay struct {
 	Interface         string   `json:"-"`
 	SubinterfaceIndex int      `json:"-"`
-	AdminState        AdminSt  `json:"admin-state,omitempty"`
-	Server            []string `json:"server,omitempty"`
+	AdminState        AdminSt  `json:"admin-state"`
+	Server            []string `json:"server"`
 	NetworkInstance   string   `json:"network-instance,omitempty"`
 }
 
