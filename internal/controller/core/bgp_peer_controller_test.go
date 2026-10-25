@@ -34,6 +34,12 @@ var _ = Describe("BGPPeer Controller", func() {
 				},
 			}
 			Expect(k8sClient.Create(ctx, device)).To(Succeed())
+
+			By("Waiting for the Device to be created")
+			Eventually(func(g Gomega) {
+				resource := &v1alpha1.Device{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(device), resource)).To(Succeed())
+			}).Should(Succeed())
 		})
 
 		AfterEach(func() {
@@ -104,7 +110,7 @@ var _ = Describe("BGPPeer Controller", func() {
 			Eventually(func(g Gomega) {
 				b := &v1alpha1.BGP{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(bgp), b)).To(Succeed())
-				g.Expect(conditions.IsReady(b)).To(BeTrue())
+				g.Expect(conditions.IsConfigured(b)).To(BeTrue())
 			}).Should(Succeed())
 
 			By("Creating a BGPPeer resource")
@@ -181,7 +187,7 @@ var _ = Describe("BGPPeer Controller", func() {
 			Eventually(func(g Gomega) {
 				b := &v1alpha1.BGP{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(bgp), b)).To(Succeed())
-				g.Expect(conditions.IsReady(b)).To(BeTrue())
+				g.Expect(conditions.IsConfigured(b)).To(BeTrue())
 			}).Should(Succeed())
 
 			By("Creating a Loopback Interface resource on the same device")
@@ -251,7 +257,7 @@ var _ = Describe("BGPPeer Controller", func() {
 			Eventually(func(g Gomega) {
 				b := &v1alpha1.BGP{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(bgp), b)).To(Succeed())
-				g.Expect(conditions.IsReady(b)).To(BeTrue())
+				g.Expect(conditions.IsConfigured(b)).To(BeTrue())
 			}).Should(Succeed())
 
 			By("Creating a BGPPeer resource with LocalAddress pointing to a non-existent Interface")
@@ -311,7 +317,7 @@ var _ = Describe("BGPPeer Controller", func() {
 			Eventually(func(g Gomega) {
 				b := &v1alpha1.BGP{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(bgp), b)).To(Succeed())
-				g.Expect(conditions.IsReady(b)).To(BeTrue())
+				g.Expect(conditions.IsConfigured(b)).To(BeTrue())
 			}).Should(Succeed())
 
 			By("Creating an unnumbered BGPPeer pointing to a non-existent Interface")
@@ -355,7 +361,7 @@ var _ = Describe("BGPPeer Controller", func() {
 			Eventually(func(g Gomega) {
 				b := &v1alpha1.BGP{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(bgp), b)).To(Succeed())
-				g.Expect(conditions.IsReady(b)).To(BeTrue())
+				g.Expect(conditions.IsConfigured(b)).To(BeTrue())
 			}).Should(Succeed())
 
 			By("Creating a link-local-only Interface resource")
@@ -470,7 +476,7 @@ var _ = Describe("BGPPeer Controller", func() {
 			Eventually(func(g Gomega) {
 				b := &v1alpha1.BGP{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(bgp), b)).To(Succeed())
-				g.Expect(conditions.IsReady(b)).To(BeTrue())
+				g.Expect(conditions.IsConfigured(b)).To(BeTrue())
 			}).Should(Succeed())
 
 			By("Creating a Loopback Interface resource on a different device")
@@ -611,7 +617,6 @@ var _ = Describe("BGPPeer Controller", func() {
 
 		It("Should not reconcile iBGP peer if local-as is set", func() {
 			By("Creating a BGP resource for the Device")
-			By("Creating a BGP resource for the Device")
 			bgp := &v1alpha1.BGP{
 				GenerateName: "test-bgppeer-bgp-",
 				Namespace:    metav1.NamespaceDefault,
@@ -627,7 +632,7 @@ var _ = Describe("BGPPeer Controller", func() {
 			Eventually(func(g Gomega) {
 				b := &v1alpha1.BGP{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(bgp), b)).To(Succeed())
-				g.Expect(conditions.IsReady(b)).To(BeTrue())
+				g.Expect(conditions.IsConfigured(b)).To(BeTrue())
 			}).Should(Succeed())
 
 			By("Creating a BGPPeer resource")
