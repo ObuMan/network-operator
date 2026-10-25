@@ -340,7 +340,7 @@ func (r *BGPPeerReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manag
 			}),
 		).
 		// Watches enqueues BGPPeers for updates in BGP resources on the same device.
-		// Only triggers on create, delete and update events when the BGP ready state changes.
+		// Only triggers on create, delete and update events when the BGP configured state changes.
 		Watches(
 			&v1alpha1.BGP{},
 			handler.EnqueueRequestsFromMapFunc(r.bgpToBGPPeers),
@@ -348,7 +348,7 @@ func (r *BGPPeerReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manag
 				UpdateFunc: func(e event.UpdateEvent) bool {
 					oldBGP := e.ObjectOld.(*v1alpha1.BGP)
 					newBGP := e.ObjectNew.(*v1alpha1.BGP)
-					return conditions.IsReady(oldBGP) != conditions.IsReady(newBGP)
+					return conditions.IsConfigured(oldBGP) != conditions.IsConfigured(newBGP)
 				},
 				GenericFunc: func(e event.GenericEvent) bool {
 					return false
@@ -356,7 +356,7 @@ func (r *BGPPeerReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manag
 			}),
 		).
 		// Watches enqueues BGPPeers for updates in VRF resources referenced by their BGP.
-		// Triggers on create, delete, and update events when the VRF's ready state changes.
+		// Triggers on create, delete, and update events when the VRF's configured state changes.
 		Watches(
 			&v1alpha1.VRF{},
 			handler.EnqueueRequestsFromMapFunc(r.vrfToBGPPeers),
@@ -364,7 +364,7 @@ func (r *BGPPeerReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manag
 				UpdateFunc: func(e event.UpdateEvent) bool {
 					oldVRF := e.ObjectOld.(*v1alpha1.VRF)
 					newVRF := e.ObjectNew.(*v1alpha1.VRF)
-					return conditions.IsReady(oldVRF) != conditions.IsReady(newVRF)
+					return conditions.IsConfigured(oldVRF) != conditions.IsConfigured(newVRF)
 				},
 				GenericFunc: func(e event.GenericEvent) bool {
 					return false
@@ -434,9 +434,9 @@ func (r *BGPPeerReconciler) reconcile(ctx context.Context, s *bgpPeerScope) (ret
 		return err
 	}
 
-	// BGP has no operational condition, so its ready condition reflects only successful configuration.
+	// BGP has no operational condition, so its configured condition reflects only successful configuration.
 	// Wait for the BGP watch to re-trigger rather than requeuing periodically.
-	if !conditions.IsReady(bgp) {
+	if !conditions.IsConfigured(bgp) {
 		conditions.Set(s.BGPPeer, metav1.Condition{
 			Type:    v1alpha1.ConfiguredCondition,
 			Status:  metav1.ConditionFalse,
@@ -707,8 +707,7 @@ func (r *BGPPeerReconciler) reconcileVRF(ctx context.Context, peer *v1alpha1.BGP
 		return nil, reconcile.TerminalError(fmt.Errorf("vrf %s belongs to different device", bgp.Spec.VrfRef.Name))
 	}
 
-	if !conditions.IsReady(vrf) {
-		// VRF uses ReadyCondition as its top-level configured state (no separate ConfiguredCondition).
+	if !conditions.IsConfigured(vrf) {
 		conditions.Set(peer, metav1.Condition{
 			Type:    v1alpha1.ConfiguredCondition,
 			Status:  metav1.ConditionFalse,
