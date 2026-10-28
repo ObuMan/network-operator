@@ -6,12 +6,37 @@ export default withMermaid({
     title: 'Network Operator',
     description: 'Cloud Native Network Device Provisioning',
     base: "/",
+    sitemap: {
+        hostname: 'https://wireapi.dev',
+    },
     head: [
         [
             'link',
             {
                 rel: 'icon',
                 href: 'https://raw.githubusercontent.com/ironcore-dev/ironcore/refs/heads/main/docs/assets/logo_borderless.svg',
+            },
+        ],
+        ['meta', { property: 'og:type', content: 'website' }],
+        ['meta', { property: 'og:site_name', content: 'Network Operator' }],
+        ['meta', { property: 'og:title', content: 'Network Operator' }],
+        [
+            'meta',
+            {
+                property: 'og:description',
+                content:
+                    'Network Operator is an open-source platform designed to empower operators to automate, operate and observe multi-vendor data-center networks',
+            },
+        ],
+        ['meta', { property: 'og:url', content: 'https://wireapi.dev' }],
+        ['meta', { name: 'twitter:card', content: 'summary' }],
+        ['meta', { name: 'twitter:title', content: 'Network Operator' }],
+        [
+            'meta',
+            {
+                name: 'twitter:description',
+                content:
+                    'Network Operator is an open-source platform designed to empower operators to automate, operate and observe multi-vendor data-center networks',
             },
         ],
     ],
