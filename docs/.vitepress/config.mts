@@ -3,7 +3,7 @@ import { fileURLToPath, URL } from 'node:url'
 
 // https://vitepress.dev/reference/site-config
 export default withMermaid({
-    title: 'Network Operator',
+    title: 'WireAPI - Network Operator',
     description: 'Cloud Native Network Device Provisioning',
     base: "/",
     sitemap: {
@@ -18,8 +18,8 @@ export default withMermaid({
             },
         ],
         ['meta', { property: 'og:type', content: 'website' }],
-        ['meta', { property: 'og:site_name', content: 'Network Operator' }],
-        ['meta', { property: 'og:title', content: 'Network Operator' }],
+        ['meta', { property: 'og:site_name', content: 'WireAPI - Network Operator' }],
+        ['meta', { property: 'og:title', content: 'WireAPI - Network Operator' }],
         [
             'meta',
             {
@@ -30,7 +30,7 @@ export default withMermaid({
         ],
         ['meta', { property: 'og:url', content: 'https://wireapi.dev' }],
         ['meta', { name: 'twitter:card', content: 'summary' }],
-        ['meta', { name: 'twitter:title', content: 'Network Operator' }],
+        ['meta', { name: 'twitter:title', content: 'WireAPI - Network Operator' }],
         [
             'meta',
             {
